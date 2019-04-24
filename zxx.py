@@ -10,23 +10,12 @@ import threading
 
 
 class MyInfo(object):
-    def __init__(self, base_url, append_url, news_label, event_target, page_num_id, content_id):
+    def __init__(self, base_url, append_url, news_label, event_target, page_num_id):
         self.base_url = base_url
         self.append_url = append_url
         self.news_label = news_label
         self.event_target = event_target
         self.page_num_id = page_num_id
-        self.content_id = content_id
-
-
-class myThread(threading.Thread):
-    def __init__(self, i):
-        threading.Thread.__init__(self)
-        self.i = i
-
-    def run(self):
-        print('Thread {} is running.'.format(self.i))
-        return
 
 
 cnt = 1
@@ -87,7 +76,7 @@ def get_view_state(soup):
 
 
 # 获取新闻信息（标题,链接,发布时间,内容）
-def get_news_info(soup, base_url, news_label, content_id):
+def get_news_info(soup, base_url, news_label):
     news_list = soup.find_all(name='a', attrs={'class': 'linkfont1'})
     date_list = soup.find_all(name='span', attrs={'class': 'linkfont1'})
     for (i, j) in zip(news_list, date_list):
@@ -110,7 +99,7 @@ def get_news_info(soup, base_url, news_label, content_id):
         # print i['target']
         # 这里判断一下是不是在站内页面 如果跳转到新页面例如shu.edu.cn就将content置为标题
         if str(i['target']) != '_new':
-            news_content = get_news_content(base_url + i['href'], content_id)
+            news_content = get_news_content(base_url + i['href'])
         else:
             news_content = i['title']
             news_url = i['href']
@@ -128,22 +117,22 @@ def get_news_info(soup, base_url, news_label, content_id):
             message = json.JSONDecoder().decode(res.text.replace('/', ''))['message']
             if code == 200:
                 print cnt, ': ', i['title'],
-                print('\033[1;32;40m' + str(code) + '\033[0m')
+                print('\033[1;32;0m' + str(code) + '\033[0m')
                 cnt += 1
             else:
-                print 'X: ', i['title'],
-                print('\033[1;31;40m' + str(code) + '\033[0m')
+                print '✘: ', i['title'],
+                print('\033[1;31;0m' + str(code) + '\033[0m')
                 # print message
         else:
             print res.status_code
 
 
 # 获取新闻内容
-def get_news_content(url, content_id):
+def get_news_content(url):
     news_res = requests.get(url)
     news_res.encoding = news_res.apparent_encoding
     news_soup = BeautifulSoup(news_res.text, 'html.parser')
-    news_content = news_soup.find('span', attrs={'id': content_id})
+    news_content = news_soup.find('span', attrs={'id': 'ArticleContent'})
     if news_content is not None:
         # fuck搞了一晚上，直接.get_text()获取一个标签下的所有文字，包括子标签
         news_content_stripe = news_content.get_text().strip().replace(' ', '').replace('\r\n', ' ')
@@ -203,23 +192,23 @@ Content-Disposition: form-data; name="__VIEWSTATE"
         print '翻页失败'
 
 
-def get_all_news(base_url, append_url, news_label, event_target, page_num_id, content_id):
+def get_all_news(base_url, append_url, news_label, event_target, page_num_id):
     # TODO 4
     url = base_url + append_url
     current_html = get_html(url)
     page = get_page_num(url, page_num_id)
-    get_first_page(base_url, append_url, news_label, content_id)
+    get_first_page(base_url, append_url, news_label)
     for i in range(page - 1):
         current_view_state = get_view_state(current_html)
-        next_html = get_next_page(base_url, append_url, current_view_state, event_target, )
+        next_html = get_next_page(base_url, append_url, current_view_state, event_target)
         current_html = BeautifulSoup(next_html, 'html.parser')
-        get_news_info(current_html, base_url, news_label, content_id)
+        get_news_info(current_html, base_url, news_label)
 
 
-def get_first_page(base_url, append_url, news_label, content_id):
+def get_first_page(base_url, append_url, news_label):
     url = base_url + append_url
     first_html = get_html(url)
-    get_news_info(first_html, base_url, news_label, content_id)
+    get_news_info(first_html, base_url, news_label)
 
 
 def get_md5(url):
@@ -233,34 +222,20 @@ def get_md5(url):
 
 
 if __name__ == '__main__':
-    i1 = MyInfo('http://www.mkszyxy.shu.edu.cn', '/', "0121e3ee-b138-4cf9-b5a8-02c9997cd736",
-                "HRCMS:ctr20239:ArticleList:_ctl0:lbtnNext", "HRCMS_ctr20239_ArticleList__ctl0_plTotalPage",
-                "HRCMS_ctr20239_ArtDetail_lblArticle")
-    i2 = MyInfo('http://www.mkszyxy.shu.edu.cn', '/Default.aspx?tabid=10666', "255c2ace-d8ea-48dd-acdb-deceb4aef3fd",
-                "HRCMS:ctr20247:ArticleList:_ctl0:lbtnNext", "HRCMS_ctr20247_ArticleList__ctl0_plTotalPage",
-                'HRCMS_ctr20247_ArtDetail_lblArticle')
-    i3 = MyInfo('http://www.mkszyxy.shu.edu.cn', '/Default.aspx?tabid=10668', "9fcb328b-60e8-40ef-a8a0-8afc6a704d37",
-                "HRCMS:ctr20253:ArticleList:_ctl0:lbtnNext", "HRCMS_ctr20253_ArticleList__ctl0_plTotalPage",
-                "HRCMS_ctr20253_ArtDetail_lblArticle")
-    i4 = MyInfo('http://www.mkszyxy.shu.edu.cn', '/Default.aspx?tabid=10669', "9f664e76-a017-4f85-8510-ad306cad7f7b",
-                "HRCMS:ctr20255:ArticleList:_ctl0:lbtnNext", "HRCMS_ctr20255_ArticleList__ctl0_plTotalPage",
-                "HRCMS_ctr20255_ArtDetail_lblArticle")
-    i5 = MyInfo('http://www.mkszyxy.shu.edu.cn', '/Default.aspx?tabid=10671', "0fe8337a-efc5-4a63-9fba-da756e72ac08",
-                "HRCMS:ctr20259:ArticleList:_ctl0:lbtnNext", "HRCMS_ctr20259_ArticleList__ctl0_plTotalPage",
-                "HRCMS_ctr20259_ArtDetail_lblArticle")
-    i6 = MyInfo('http://www.mkszyxy.shu.edu.cn', '/Default.aspx?tabid=10673', "57ba0de0-d0ef-4708-b9de-7036f3c5d433",
-                "HRCMS:ctr20263:ArticleList:_ctl0:lbtnNext", "HRCMS_ctr20263_ArticleList__ctl0_plTotalPage",
-                "HRCMS_ctr20263_ArtDetail_lblArticle")
-    i7 = MyInfo('http://www.mkszyxy.shu.edu.cn', '/Default.aspx?tabid=10672', "62798213-09e0-4466-a7da-9cc6c14936ce",
-                "HRCMS:ctr20261:ArticleList:_ctl0:lbtnNext", "HRCMS_ctr20261_ArticleList__ctl0_plTotalPage",
-                "HRCMS_ctr20272_ArtDetail_lblArticle")
+    i1 = MyInfo('http://www.zxx.shu.edu.cn', '/Default.aspx?tabid=27371', "255c2ace-d8ea-48dd-acdb-deceb4aef3fd",
+                "dnn:ctr51150:ArticleList:_ctl0:lbtnNext", "dnn_ctr51150_ArticleList__ctl0_plTotalPage")
+    i2 = MyInfo('http://www.zxx.shu.edu.cn', '/Default.aspx?tabid=27163', "9f664e76-a017-4f85-8510-ad306cad7f7b",
+                "dnn:ctr50972:ArticleList:_ctl0:lbtnNext", "dnn_ctr50972_ArticleList__ctl0_plTotalPage")
 
-    repeat_list = [i1, i2, i3, i4, i5, i6, i7]
+    repeat_list = [i2]
     for i in range((len(repeat_list))):
         get_all_news(repeat_list[i].base_url, repeat_list[i].append_url, repeat_list[i].news_label,
-                     repeat_list[i].event_target, repeat_list[i].page_num_id, repeat_list[i].content_id)
-        print('\033[1;33;40m')
+                     repeat_list[i].event_target, repeat_list[i].page_num_id)
+        print('\033[1;33;0m')
         print "☆" * 61
         print "☆☆☆☆☆☆☆☆☆☆☆☆☆☆☆☆☆☆☆☆☆☆☆☆☆☆章节爬取完毕☆☆☆☆☆☆☆☆☆☆☆☆☆☆☆☆☆☆☆☆☆☆☆☆☆"
         print "☆" * 61
         print('\033[0m')
+    print('\033[1;34;0m'),
+    print "本次爬取结束，共新增", cnt, '条新闻资讯'
+    print('\033[0m')
