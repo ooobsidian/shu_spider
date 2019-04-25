@@ -1,5 +1,4 @@
 # coding=utf-8
-# TODO 想用多线程实现 管理学院的实在太多了
 # py3.7
 from bs4 import BeautifulSoup
 import re
@@ -8,6 +7,7 @@ import datetime
 import json
 import hashlib
 import random
+import threading
 
 
 class MyInfo(object):
@@ -17,6 +17,14 @@ class MyInfo(object):
         self.news_label = news_label
         self.event_target = event_target
         self.page_num_id = page_num_id
+
+
+# 编码类
+class MyEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, bytes):
+            return str(obj, encoding='utf-8')
+        return json.JSONEncoder.default(self, obj)
 
 
 cnt = 1
@@ -96,7 +104,6 @@ def get_news_info(soup, base_url, news_label):
             "Content-Type": "application/json",
             "User-Agent": random.choice(user_agent)
         }
-        # 若跳转链接不属于信息办网站，则不爬取内容
         # print i['target']
         # 这里判断一下是不是在站内页面 如果跳转到新页面例如shu.edu.cn就将content置为标题
         if str(i['target']) != '_new':
@@ -107,10 +114,15 @@ def get_news_info(soup, base_url, news_label):
             print(news_url)
         # 在此将新闻插入数据库
         # TODO 1
-        para = {"userId": "a65a06a6-8e44-4b4c-8207-6f3f0a32635c", "mediaTitle": i['title'],
-                "newsUrl": news_url, "newsLabelId": news_label,
-                "contentFromScrapy": news_content, "md5": md5, "createTime": str(date)}
-        para = json.dumps(str(para))
+        para = {}
+        para['userId'] = 'a65a06a6-8e44-4b4c-8207-6f3f0a32635c'
+        para['mediaTitle'] = i['title']
+        para['newsUrl'] = news_url
+        para['newsLabelId'] = news_label
+        para['contentFromScrapy'] = news_content
+        para['md5'] = md5
+        para['createTime'] = str(date)
+        para = json.dumps(para, cls=MyEncoder, indent=4)
         res = requests.post(url=url, data=para, headers=header)
         global cnt
         if res.status_code == 200:
@@ -118,12 +130,9 @@ def get_news_info(soup, base_url, news_label):
             message = json.JSONDecoder().decode(res.text.replace('/', ''))['message']
             if code == 200:
                 print('\033[1;32;0m' + str(cnt) + '\033[0m', ': ', i['title'], '\033[1;32;0m' + str(code) + '\033[0m')
-                # print(i['title'], )
-                # print('\033[1;32;0m' + str(code) + '\033[0m')
                 cnt += 1
             else:
                 print('\033[1;31;0m' + '✘' + '\033[0m', ": ", i['title'], '\033[1;31;0m' + str(code) + '\033[0m')
-                # print message
         else:
             print(res.status_code)
 
@@ -147,8 +156,7 @@ def get_page_num(url, page_num_id):
     soup = get_html(url)
     # TODO 改页码id
     page = soup.find('span', attrs={'id': page_num_id})
-    # # 将正则匹配到的页码转成数字
-    print(page.string)
+    # 将正则匹配到的页码转成数字
     pattern = re.compile(r'共([0-9]+)页')
     tmp = pattern.findall(page.decode())
     page_num = int(tmp[0])
@@ -184,7 +192,7 @@ Content-Disposition: form-data; name="__VIEWSTATE"
     header = {'content-type': 'multipart/form-data;boundary=----WebKitFormBoundarySCw7dznpMFYKyT0X'}
     # 模拟提交multipart/form-data表单数据
     params = raw + current_view_state + '\n' + end
-    # print params
+    # print(params)
     # 改data为files
     r = requests.post(url=url, data=params, headers=header)
     # print r.request.body
@@ -225,29 +233,46 @@ def get_md5(url):
 
 
 if __name__ == '__main__':
-    base = 'http://www.ms.shu.edu.cn'
-    table_id = '/Default.aspx?tabid='
+    base = 'http://www.sfa.shu.edu.cn'
 
-    i1 = MyInfo(base, table_id + '27397', "0121e3ee-b138-4cf9-b5a8-02c9997cd736",
-                "dnn:ctr51178:ArticleList:_ctl0:lbtnNext", "dnn_ctr51178_ArticleList__ctl0_plTotalPage")
-    i2 = MyInfo(base, table_id + '27398', "19f6c2f0-b793-4463-aa2a-a278e2089d9e",
-                "dnn:ctr51188:ArticleList:_ctl0:lbtnNext", "dnn_ctr51188_ArticleList__ctl0_plTotalPage")
-    i3 = MyInfo(base, table_id + '27399', "b78c35cb-44d9-431c-9e52-f9136c829d4c",
-                "dnn:ctr51190:ArticleList:_ctl0:lbtnNext", "dnn_ctr51190_ArticleList__ctl0_plTotalPage")
+    i1 = MyInfo(base, '/Default.aspx?tabid=10263&mid=19198&ShowAll=true',
+                "019923fc-4c13-40aa-aac7-6c3f017f7e22",
+                "HRCMS:ctr19198:ArticleList:_ctl0:lbtnNext", "HRCMS_ctr19198_ArticleList__ctl0_plTotalPage")
+    i2 = MyInfo(base, '/Default.aspx?tabid=9753&def=ErrorMessage', "39dc7143-e79c-4408-ad68-5acb7762c7f5",
+                "HRCMS:ctr17217:ArticleList:_ctl0:lbtnNext", "HRCMS_ctr17217_ArticleList__ctl0_plTotalPage")
+    i3 = MyInfo(base, '/Default.aspx?tabid=10208', "b78c35cb-44d9-431c-9e52-f9136c829d4c",
+                "HRCMS:ctr17863:ArticleList:_ctl0:lbtnNext", "HRCMS_ctr17863_ArticleList__ctl0_plTotalPage")
+    repeat_list = [i1, i2, i3]
+    threads = []
     try:
-        repeat_list = [i1, i2, i3]
-        for i in range((len(repeat_list))):
-            get_all_news(repeat_list[i].base_url, repeat_list[i].append_url, repeat_list[i].news_label,
-                         repeat_list[i].event_target, repeat_list[i].page_num_id)
-            print('\033[1;33;0m')
-            print("☆" * 61)
-            print("☆☆☆☆☆☆☆☆☆☆☆☆☆☆☆☆☆☆☆☆☆☆☆☆☆☆章节爬取完毕☆☆☆☆☆☆☆☆☆☆☆☆☆☆☆☆☆☆☆☆☆☆☆☆☆")
-            print("☆" * 61)
-            print('\033[0m')
-            print('\033[1;34;0m', )
-            print("本次爬取结束，共新增", cnt - 1, '条新闻资讯')
-            print('\033[0m')
-    except:
+        t1 = threading.Thread(target=get_all_news,
+                              args=(repeat_list[0].base_url, repeat_list[0].append_url, repeat_list[0].news_label,
+                                    repeat_list[0].event_target, repeat_list[0].page_num_id,))
+        t2 = threading.Thread(target=get_all_news,
+                              args=(repeat_list[1].base_url, repeat_list[1].append_url, repeat_list[1].news_label,
+                                    repeat_list[1].event_target, repeat_list[1].page_num_id,))
+        t3 = threading.Thread(target=get_all_news,
+                              args=(repeat_list[2].base_url, repeat_list[2].append_url, repeat_list[2].news_label,
+                                    repeat_list[2].event_target, repeat_list[2].page_num_id,))
+        t1.setDaemon(False)
+        t2.setDaemon(False)
+        t3.setDaemon(False)
+        t1.start()
+        t2.start()
+        t3.start()
+        t1.join()
+        t2.join()
+        t3.join()
+        print('\033[1;33;0m')
+        print("☆" * 61)
+        print("☆☆☆☆☆☆☆☆☆☆☆☆☆☆☆☆☆☆☆☆☆☆☆☆☆☆章节爬取完毕☆☆☆☆☆☆☆☆☆☆☆☆☆☆☆☆☆☆☆☆☆☆☆☆☆")
+        print("☆" * 61)
+        print('\033[0m')
+        print('\033[1;34;0m', )
+        print("本次爬取结束，共新增", cnt - 1, '条新闻资讯')
+        print('\033[0m')
+    except Exception as e:
         print('\033[1;34;0m'),
         print("本次爬取因出错而中断，共新增", cnt - 1, '条新闻资讯')
         print('\033[0m')
+        print('错误原因：', e)

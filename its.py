@@ -39,27 +39,25 @@ def get_news_info(soup):
             "Content-Type": "application/json"
         }
         # 若跳转链接不属于信息办网站，则不爬取内容
-        print i['target']
         # 这里判断一下是不是在站内页面 如果跳转到新页面例如shu.edu.cn就将content置为标题
         if str(i['target']) != '_new':
             news_content = get_news_content(base_url + i['href'])
         else:
-            print "2"
             news_content = i['title']
             news_url = i['href']
-            print news_url
+            print(news_url)
         # 在此将新闻插入数据库
         para = {"userId": "a65a06a6-8e44-4b4c-8207-6f3f0a32635c", "mediaTitle": i['title'],
                 "newsUrl": news_url, "newsLabelId": "255c2ace-d8ea-48dd-acdb-deceb4aef3fd",
                 "contentFromScrapy": news_content, "md5": md5, "createTime": str(date)}
         para = json.dumps(para)
         res = requests.post(url=url, data=para, headers=header)
-        print i['title']
+        print(i['title'])
         if res.status_code == 200:
-            print res.text
-            print "插入新闻成功"
+            print(res.text)
+            print("插入新闻成功")
         else:
-            print res.status_code
+            print(res.status_code)
 
 
 # 获取新闻内容
@@ -119,11 +117,11 @@ Content-Disposition: form-data; name="__VIEWSTATE"
     r = requests.post(url=Url, data=params, headers=header)
     # print r.request.body
     if r.status_code == 200:
-        print '翻页成功'
+        print('翻页成功')
         # print r.text
         return r.text
     else:
-        print '翻页失败'
+        print('翻页失败')
 
 
 def get_all_news():
